@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,9 +32,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -49,24 +52,23 @@ import com.valeria.app.ui.ValeriaTheme
 
 class MainActivity : ComponentActivity() {
 
+    private var micPermissionGranted by mutableStateOf(false)
+
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         micPermissionGranted = granted
+        if (!granted) {
+            Toast.makeText(this, "Microphone permission is required for voice commands", Toast.LENGTH_LONG).show()
+        }
     }
-
-    private var micPermissionGranted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            micPermissionGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-            if (!micPermissionGranted) {
-                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-            }
-        } else {
-            micPermissionGranted = true
-        }
+        
+        micPermissionGranted = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
 
         setContent {
             ValeriaTheme {
@@ -77,9 +79,7 @@ class MainActivity : ComponentActivity() {
                     ValeriaScreen(
                         hasMicPermission = micPermissionGranted,
                         onRequestPermission = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                            }
+                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }
                     )
                 }
@@ -109,6 +109,8 @@ fun ValeriaScreen(
                         val response = FirstAidResponse.respond(text)
                         messages.add(ConversationMessage(response, fromUser = false))
                     }
+                }.onFailure { error ->
+                    Toast.makeText(context, error.message ?: "Speech error", Toast.LENGTH_SHORT).show()
                 }
             },
             onListeningEnded = { isListening.value = false }
@@ -131,9 +133,12 @@ fun ValeriaScreen(
     }
 
     LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty() && messages.last().fromUser == false) {
+        if (messages.isNotEmpty() && !messages.last().fromUser) {
             tts.speak(messages.last().text)
             isSpeaking.value = true
+        }
+        if (messages.isNotEmpty()) {
+            scrollState.animateScrollTo(scrollState.maxValue)
         }
     }
 
@@ -167,7 +172,8 @@ fun ValeriaScreen(
                 Text(
                     text = "Microphone access is needed so Valeria can hear you. Tap the mic to allow.",
                     color = Color.White.copy(alpha = 0.8f),
-                    modifier = Modifier.padding(vertical = 16.dp)
+                    modifier = Modifier.padding(vertical = 16.dp),
+                    textAlign = TextAlign.Center
                 )
             }
 
@@ -182,7 +188,8 @@ fun ValeriaScreen(
                         text = "Say \"Valeria, I cut my hand\" or describe what happened. Tap the mic and speak.",
                         color = Color.White.copy(alpha = 0.6f),
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(vertical = 24.dp)
+                        modifier = Modifier.padding(vertical = 24.dp),
+                        textAlign = TextAlign.Center
                     )
                 } else {
                     messages.forEach { msg ->

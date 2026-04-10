@@ -2,102 +2,140 @@ package com.valeria.app.speech
 
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.util.Log
 import java.util.Locale
 
 /**
- * Offline-first speech-to-text using Android's built-in SpeechRecognizer.
- * Prefers on-device recognition when available (API 31+ EXTRA_PREFER_OFFLINE).
+ * Speech-to-text using Android's built-in SpeechRecognizer.
  */
 class SpeechToTextHelper(
     private val context: Context,
     private val callback: (Result<String>) -> Unit,
     private val onListeningEnded: (() -> Unit)? = null
 ) {
+    private val TAG = "SpeechToTextHelper"
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private fun runOnMain(block: () -> Unit) {
-        mainHandler.post(block)
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            block()
+        } else {
+            mainHandler.post(block)
+        }
     }
+
     private var speechRecognizer: SpeechRecognizer? = null
+    
     private val recognizerIntent: Intent by lazy {
         Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+            // Use Language Tag (e.g. en-US) which is more standard than toString()
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            // Prefer on-device when available (Android 10+ with downloaded language)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-            }
+            // Tell the recognizer to be a bit more patient
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
         }
     }
 
     fun startListening() {
-        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
-            runOnMain { callback(Result.failure(IllegalStateException("Speech recognition not available on this device"))) }
-            runOnMain { onListeningEnded?.invoke() }
-            return
-        }
-        release()
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
-            setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) {}
-                override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) {}
-                override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() {}
-                override fun onError(error: Int) {
-                    val message = when (error) {
-                        SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
-                        SpeechRecognizer.ERROR_CLIENT -> "Client error"
-                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission needed"
-                        SpeechRecognizer.ERROR_NETWORK -> "Network error (using offline when possible)"
-                        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
-                        SpeechRecognizer.ERROR_NO_MATCH -> "No speech match"
-                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy"
-                        SpeechRecognizer.ERROR_SERVER -> "Server error"
-                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech input"
-                        else -> "Recognition error: $error"
+        runOnMain {
+            if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+                Log.e(TAG, "Speech recognition not available")
+                callback(Result.failure(IllegalStateException("Speech recognition not available on this device")))
+                onListeningEnded?.invoke()
+                return@runOnMain
+            }
+
+            release()
+            
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
+                setRecognitionListener(object : RecognitionListener {
+                    override fun onReadyForSpeech(params: Bundle?) {
+                        Log.d(TAG, "onReadyForSpeech")
                     }
-                    runOnMain {
-                        callback(Result.failure(Exception(message)))
-                        onListeningEnded?.invoke()
+
+                    override fun onBeginningOfSpeech() {
+                        Log.d(TAG, "onBeginningOfSpeech - Mic started picking up sound")
                     }
-                }
-                override fun onResults(results: Bundle?) {
-                    val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    val text = matches?.firstOrNull()?.trim()
-                    runOnMain {
-                        if (!text.isNullOrBlank()) {
-                            callback(Result.success(text))
-                        } else {
-                            callback(Result.failure(Exception("No speech recognized")))
+
+                    override fun onRmsChanged(rmsdB: Float) {
+                        // Log this only if you need to debug volume levels
+                        // Log.v(TAG, "Sound level: $rmsdB")
+                    }
+
+                    override fun onBufferReceived(buffer: ByteArray?) {}
+
+                    override fun onEndOfSpeech() {
+                        Log.d(TAG, "onEndOfSpeech")
+                    }
+
+                    override fun onError(error: Int) {
+                        val message = when (error) {
+                            SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
+                            SpeechRecognizer.ERROR_CLIENT -> "Client error"
+                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission needed"
+                            SpeechRecognizer.ERROR_NETWORK -> "Network error"
+                            SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
+                            SpeechRecognizer.ERROR_NO_MATCH -> "No speech match - check if emulator mic is enabled"
+                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy - please wait"
+                            SpeechRecognizer.ERROR_SERVER -> "Server error"
+                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech input - timed out"
+                            SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "Language pack missing"
+                            else -> "Recognition error: $error"
                         }
-                        onListeningEnded?.invoke()
+                        Log.e(TAG, "onError: $message ($error)")
+                        runOnMain {
+                            callback(Result.failure(Exception(message)))
+                            onListeningEnded?.invoke()
+                        }
                     }
-                }
-                override fun onPartialResults(partialResults: Bundle?) {
-                    // Partial results for UI display only; final result comes in onResults
-                }
-                override fun onEvent(eventType: Int, params: Bundle?) {}
-            })
-            startListening(recognizerIntent)
+
+                    override fun onResults(results: Bundle?) {
+                        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        val text = matches?.firstOrNull()?.trim()
+                        Log.d(TAG, "onResults: $text")
+                        runOnMain {
+                            if (!text.isNullOrBlank()) {
+                                callback(Result.success(text))
+                            } else {
+                                callback(Result.failure(Exception("No speech recognized")))
+                            }
+                            onListeningEnded?.invoke()
+                        }
+                    }
+
+                    override fun onPartialResults(partialResults: Bundle?) {
+                        val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        Log.d(TAG, "onPartialResults: ${matches?.firstOrNull()}")
+                    }
+
+                    override fun onEvent(eventType: Int, params: Bundle?) {}
+                })
+                
+                Log.d(TAG, "Starting listening with locale: ${Locale.getDefault().toLanguageTag()}")
+                startListening(recognizerIntent)
+            }
         }
     }
 
     fun stopListening() {
-        speechRecognizer?.stopListening()
+        runOnMain {
+            speechRecognizer?.stopListening()
+        }
     }
 
     fun release() {
-        speechRecognizer?.destroy()
-        speechRecognizer = null
+        runOnMain {
+            speechRecognizer?.destroy()
+            speechRecognizer = null
+        }
     }
 }

@@ -24,7 +24,7 @@ object FirstAidResponse {
         "nosebleed", "nose bleed", "nose blood"
     )
     private val sprainKeywords = listOf(
-        "sprain", "sprained", "ankle", "wrist", "twist", "twisted"
+        "sprain", "sprained", "ankle", "wrist", "twist", "twisted", "bone", "break", "broke", "broken", "fracture"
     )
     private val generalHelp = listOf(
         "help", "hurt", "injured", "emergency", "what do i do", "first aid"
@@ -82,7 +82,7 @@ object FirstAidResponse {
     """.trimIndent().replace("\n", " ")
 
     private fun sprainResponse(): String = """
-        For a sprain, remember RICE. R — Rest: avoid using the injured area. I — Ice: apply a cold pack for 15 to 20 minutes every few hours. C — Compression: wrap with an elastic bandage to reduce swelling. E — Elevation: keep the injured area raised above the heart when possible. If you can't bear weight or the pain is severe, see a doctor.
+        For a sprain or possible broken bone: remember RICE. R — Rest: avoid using the injured area. I — Ice: apply a cold pack for 15 to 20 minutes every few hours. C — Compression: wrap with an elastic bandage to reduce swelling. E — Elevation: keep the injured area raised above the heart when possible. If the limb looks deformed, you heard a snap, or you cannot move it, seek medical help immediately.
     """.trimIndent().replace("\n", " ")
 
     private fun bruiseResponse(): String = """

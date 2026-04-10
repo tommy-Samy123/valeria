@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Valeria</string>
+    <string name="permission_rationale">Valeria needs microphone access to hear you and provide voice first-aid instructions.</string>
+</resources>

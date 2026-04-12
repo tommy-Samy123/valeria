@@ -31,16 +31,18 @@ class TextToSpeechHelper(
 
     fun speak(text: String, utteranceId: String = "valeria_tts_${System.currentTimeMillis()}") {
         val engine = tts ?: return
+        // Remove markdown symbols so TTS doesn't read "asterisk asterisk"
+        val cleanText = text.replace(Regex("[*#_`~]"), "")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {}
                 override fun onDone(utteranceId: String?) { onDone() }
                 override fun onError(utteranceId: String?) { onDone() }
             })
-            engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+            engine.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
         } else {
             @Suppress("DEPRECATION")
-            engine.speak(text, TextToSpeech.QUEUE_FLUSH, null)
+            engine.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null)
             onDone()
         }
     }

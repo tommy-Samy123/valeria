@@ -12,11 +12,13 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val ValeriaDarkScheme = darkColorScheme(
-    primary = Color(0xFFE53935),
+    primary = Color(0xFF6C63FF), // Vibrant indigo/purple
+    secondary = Color(0xFF00C9FF), // Cyan/Blue
+    tertiary = Color(0xFFB388FF),
     onPrimary = Color.White,
-    surface = Color.Black,
+    surface = Color(0xFF1A1A2E), // Deep midnight blue for cards
     onSurface = Color.White,
-    background = Color.Black,
+    background = Color(0xFF10101A), // Darker midnight for background
     onBackground = Color.White
 )
 

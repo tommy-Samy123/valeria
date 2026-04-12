@@ -17,6 +17,8 @@ import java.util.Locale
 class SpeechToTextHelper(
     private val context: Context,
     private val callback: (Result<String>) -> Unit,
+    private val getActivelySpeakingText: (() -> String?)? = null,
+    private val onSpeechDetected: (() -> Unit)? = null,
     private val onListeningEnded: (() -> Unit)? = null
 ) {
     private val TAG = "SpeechToTextHelper"
@@ -28,6 +30,25 @@ class SpeechToTextHelper(
         } else {
             mainHandler.post(block)
         }
+    }
+
+    private fun isLikelyEcho(recognizedText: String): Boolean {
+        val tts = getActivelySpeakingText?.invoke() ?: return false
+        if (tts.isBlank() || recognizedText.isBlank()) return false
+        
+        val ttsWords = tts.lowercase().split(Regex("\\W+")).filter { it.isNotBlank() }
+        val recWords = recognizedText.lowercase().split(Regex("\\W+")).filter { it.isNotBlank() }
+        
+        if (recWords.isEmpty()) return false
+        
+        var matchCount = 0
+        for (word in recWords) {
+            if (ttsWords.contains(word)) matchCount++
+        }
+        
+        val matchRatio = matchCount.toFloat() / recWords.size
+        // If 70% or more of the detected words appear in the currently spoken TTS, it's an echo
+        return matchRatio >= 0.7f
     }
 
     private var speechRecognizer: SpeechRecognizer? = null
@@ -75,16 +96,17 @@ class SpeechToTextHelper(
                         }
 
                         override fun onError(error: Int) {
+                            if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT || error == SpeechRecognizer.ERROR_CLIENT) {
+                                // Silent errors for continuous listening loop
+                                runOnMain { onListeningEnded?.invoke() }
+                                return
+                            }
                             val message = when (error) {
                                 SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
-                                SpeechRecognizer.ERROR_CLIENT -> "Client error"
                                 SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission needed"
                                 SpeechRecognizer.ERROR_NETWORK -> "Network error"
-                                SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
-                                SpeechRecognizer.ERROR_NO_MATCH -> "No speech match - check if emulator mic is enabled"
                                 SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy - please wait"
                                 SpeechRecognizer.ERROR_SERVER -> "Server error"
-                                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech input - timed out"
                                 SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "Language pack missing"
                                 else -> "Recognition error: $error"
                             }
@@ -101,7 +123,11 @@ class SpeechToTextHelper(
                             Log.d(TAG, "onResults: $text")
                             runOnMain {
                                 if (!text.isNullOrBlank()) {
-                                    callback(Result.success(text))
+                                    if (isLikelyEcho(text)) {
+                                        Log.d(TAG, "onResults: Ignored as TTS echo")
+                                    } else {
+                                        callback(Result.success(text))
+                                    }
                                 } else {
                                     callback(Result.failure(Exception("No speech recognized")))
                                 }
@@ -111,7 +137,11 @@ class SpeechToTextHelper(
 
                         override fun onPartialResults(partialResults: Bundle?) {
                             val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                            Log.d(TAG, "onPartialResults: ${matches?.firstOrNull()}")
+                            val partialText = matches?.firstOrNull()?.trim()
+                            if (!partialText.isNullOrEmpty() && !isLikelyEcho(partialText)) {
+                                runOnMain { onSpeechDetected?.invoke() }
+                            }
+                            Log.d(TAG, "onPartialResults: $partialText")
                         }
 
                         override fun onEvent(eventType: Int, params: Bundle?) {}

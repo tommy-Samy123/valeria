@@ -25,7 +25,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicNone
+import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Settings
+import kotlinx.coroutines.delay
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -167,9 +169,11 @@ fun ValeriaScreen(
 ) {
     val context = LocalContext.current
     val messages = viewModel.messages
+    var isMuted by remember { mutableStateOf(true) }
     var isListening by remember { mutableStateOf(false) }
     var isSpeaking by remember { mutableStateOf(false) }
     var isGenerating by remember { mutableStateOf(false) }
+    var currentTtsText by remember { mutableStateOf("") }
     val scrollState = rememberScrollState()
 
     val ttsHelperState = remember { mutableStateOf<TextToSpeechHelper?>(null) }
@@ -208,6 +212,7 @@ fun ValeriaScreen(
                                         messages[assistantIndex] = ConversationMessage(full, fromUser = false)
                                     }
                                     if (full.isNotBlank()) {
+                                        currentTtsText = full
                                         ttsHelperState.value?.speak(full)
                                         isSpeaking = true
                                     }
@@ -226,8 +231,28 @@ fun ValeriaScreen(
                     Toast.makeText(context, error.message ?: "Speech error", Toast.LENGTH_SHORT).show()
                 }
             },
+            getActivelySpeakingText = { if (isSpeaking) currentTtsText else null },
+            onSpeechDetected = {
+                if (isSpeaking) {
+                    ttsHelperState.value?.stop()
+                    isSpeaking = false
+                }
+            },
             onListeningEnded = { isListening = false }
         )
+    }
+
+    LaunchedEffect(isMuted, isGenerating, isListening) {
+        if (!isMuted && !isGenerating && !isListening) {
+            delay(300) // Brief delay to avoid overwhelming the speech recognizer
+            if (!isMuted && !isGenerating) {
+                stt.startListening()
+                isListening = true
+            }
+        } else if (isMuted && isListening) {
+            stt.stopListening()
+            isListening = false
+        }
     }
 
     DisposableEffect(Unit) {
@@ -250,6 +275,7 @@ fun ValeriaScreen(
         if (!useHardcodedRules) return@LaunchedEffect
         val last = messages.last()
         if (!last.fromUser && last.text.isNotBlank()) {
+            currentTtsText = last.text
             ttsHelperState.value?.speak(last.text)
             isSpeaking = true
         }
@@ -357,33 +383,15 @@ fun ValeriaScreen(
                                 onRequestPermission()
                                 return@FloatingActionButton
                             }
-                            if (isGenerating) {
-                                Toast.makeText(
-                                    context,
-                                    "Please wait for the current reply to finish.",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                return@FloatingActionButton
-                            }
-                            if (isSpeaking) {
-                                ttsHelperState.value?.stop()
-                                isSpeaking = false
-                            }
-                            if (isListening) {
-                                stt.stopListening()
-                                isListening = false
-                            } else {
-                                isListening = true
-                                stt.startListening()
-                            }
+                            isMuted = !isMuted // Toggle continuous listening
                         },
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = Color.White,
+                        containerColor = if (isMuted) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.primary,
+                        contentColor = if (isMuted) Color.White else Color.Black,
                         modifier = Modifier.size(72.dp)
                     ) {
                         Icon(
-                            imageVector = if (isListening) Icons.Default.MicNone else Icons.Default.Mic,
-                            contentDescription = if (isListening) "Listening…" else "Tap to speak",
+                            imageVector = if (isMuted) Icons.Default.MicOff else Icons.Default.Mic,
+                            contentDescription = if (isMuted) "Unmute mic" else "Mute mic",
                             modifier = Modifier.size(32.dp)
                         )
                     }

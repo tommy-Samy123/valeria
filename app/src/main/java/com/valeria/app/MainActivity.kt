@@ -162,10 +162,11 @@ fun ValeriaScreen(
     useHardcodedRules: Boolean,
     gemmaEngine: GemmaLlmEngine,
     mainHandler: Handler,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    viewModel: ValeriaViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     val context = LocalContext.current
-    val messages = remember { mutableStateListOf<ConversationMessage>() }
+    val messages = viewModel.messages
     var isListening by remember { mutableStateOf(false) }
     var isSpeaking by remember { mutableStateOf(false) }
     var isGenerating by remember { mutableStateOf(false) }
@@ -392,7 +393,11 @@ fun ValeriaScreen(
     }
 }
 
-private data class ConversationMessage(
+class ValeriaViewModel : androidx.lifecycle.ViewModel() {
+    val messages = androidx.compose.runtime.mutableStateListOf<ConversationMessage>()
+}
+
+data class ConversationMessage(
     val text: String,
     val fromUser: Boolean
 )

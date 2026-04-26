@@ -1,9 +1,13 @@
 package com.valeria.app.speech
 
 import android.content.Context
-import android.os.Build
+import android.media.MediaPlayer
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import java.io.File
 import java.util.Locale
 
 /**
@@ -16,7 +20,11 @@ class TextToSpeechHelper(
     private val onDone: () -> Unit = {}
 ) {
     private var tts: TextToSpeech? = null
+    private var mediaPlayer: MediaPlayer? = null
     private val appContext = context.applicationContext
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var isPlaybackActive = false
+    private var isPaused = false
 
     fun init() {
         if (tts != null) return
@@ -31,30 +39,92 @@ class TextToSpeechHelper(
 
     fun speak(text: String, utteranceId: String = "valeria_tts_${System.currentTimeMillis()}") {
         val engine = tts ?: return
-        // Remove markdown symbols so TTS doesn't read "asterisk asterisk"
+        
+        stop() // Stop previous playback if any
+        
         val cleanText = text.replace(Regex("[*#_`~]"), "")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {}
-                override fun onDone(utteranceId: String?) { onDone() }
-                override fun onError(utteranceId: String?) { onDone() }
-            })
-            engine.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
-        } else {
-            @Suppress("DEPRECATION")
-            engine.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null)
+        val tempFile = File(appContext.cacheDir, "tts_temp.wav")
+        if (tempFile.exists()) tempFile.delete()
+        
+        engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) {}
+            override fun onDone(utteranceId: String?) {
+                mainHandler.post { playFile(tempFile) }
+            }
+            override fun onError(utteranceId: String?) {
+                mainHandler.post { onDone() }
+            }
+        })
+        
+        val params = Bundle().apply {
+            putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
+        }
+        engine.synthesizeToFile(cleanText, params, tempFile, utteranceId)
+    }
+
+    private fun playFile(file: File) {
+        try {
+            mediaPlayer = MediaPlayer().apply {
+                setDataSource(file.absolutePath)
+                setOnCompletionListener {
+                    isPlaybackActive = false
+                    isPaused = false
+                    onDone()
+                }
+                setOnErrorListener { _, _, _ ->
+                    isPlaybackActive = false
+                    isPaused = false
+                    onDone()
+                    true
+                }
+                prepare()
+                start()
+            }
+            isPlaybackActive = true
+            isPaused = false
+        } catch (e: Exception) {
+            e.printStackTrace()
             onDone()
+        }
+    }
+
+    fun pause() {
+        mediaPlayer?.let {
+            if (it.isPlaying) {
+                it.pause()
+                isPaused = true
+                isPlaybackActive = false
+            }
+        }
+    }
+
+    fun resume() {
+        mediaPlayer?.let {
+            if (!it.isPlaying && isPaused) {
+                it.start()
+                isPaused = false
+                isPlaybackActive = true
+            }
         }
     }
 
     fun stop() {
         tts?.stop()
+        mediaPlayer?.let {
+            if (it.isPlaying) it.stop()
+            it.release()
+        }
+        mediaPlayer = null
+        isPlaybackActive = false
+        isPaused = false
     }
 
-    fun isSpeaking(): Boolean = tts?.isSpeaking == true
+    fun isSpeaking(): Boolean = isPlaybackActive
+
+    fun isPausedState(): Boolean = isPaused
 
     fun release() {
-        tts?.stop()
+        stop()
         tts?.shutdown()
         tts = null
     }

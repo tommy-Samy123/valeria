@@ -26,7 +26,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicNone
 import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Stop
 import kotlinx.coroutines.delay
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -173,6 +176,7 @@ fun ValeriaScreen(
     var isListening by remember { mutableStateOf(false) }
     var isSpeaking by remember { mutableStateOf(false) }
     var isGenerating by remember { mutableStateOf(false) }
+    var isTtsPaused by remember { mutableStateOf(false) }
     var currentTtsText by remember { mutableStateOf("") }
     val scrollState = rememberScrollState()
 
@@ -258,7 +262,10 @@ fun ValeriaScreen(
     DisposableEffect(Unit) {
         val tts = TextToSpeechHelper(
             context,
-            onDone = { isSpeaking = false }
+            onDone = { 
+                isSpeaking = false
+                isTtsPaused = false
+            }
         )
         tts.init()
         ttsHelperState.value = tts
@@ -377,23 +384,67 @@ fun ValeriaScreen(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    FloatingActionButton(
-                        onClick = {
-                            if (!hasMicPermission) {
-                                onRequestPermission()
-                                return@FloatingActionButton
+                    if (isSpeaking || isTtsPaused) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            FloatingActionButton(
+                                onClick = {
+                                    if (isTtsPaused) {
+                                        ttsHelperState.value?.resume()
+                                        isTtsPaused = false
+                                        isSpeaking = true
+                                    } else {
+                                        ttsHelperState.value?.pause()
+                                        isTtsPaused = true
+                                        isSpeaking = false
+                                    }
+                                },
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = Color.Black,
+                                modifier = Modifier.size(72.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isTtsPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                                    contentDescription = if (isTtsPaused) "Play" else "Pause",
+                                    modifier = Modifier.size(32.dp)
+                                )
                             }
-                            isMuted = !isMuted // Toggle continuous listening
-                        },
-                        containerColor = if (isMuted) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.primary,
-                        contentColor = if (isMuted) Color.White else Color.Black,
-                        modifier = Modifier.size(72.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (isMuted) Icons.Default.MicOff else Icons.Default.Mic,
-                            contentDescription = if (isMuted) "Unmute mic" else "Mute mic",
-                            modifier = Modifier.size(32.dp)
-                        )
+                            FloatingActionButton(
+                                onClick = {
+                                    ttsHelperState.value?.stop()
+                                    isSpeaking = false
+                                    isTtsPaused = false
+                                    currentTtsText = ""
+                                },
+                                containerColor = Color.Red,
+                                contentColor = Color.White,
+                                modifier = Modifier.size(72.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Stop,
+                                    contentDescription = "Stop",
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+                        }
+                    } else {
+                        FloatingActionButton(
+                            onClick = {
+                                if (!hasMicPermission) {
+                                    onRequestPermission()
+                                    return@FloatingActionButton
+                                }
+                                isMuted = !isMuted // Toggle continuous listening
+                            },
+                            containerColor = if (isMuted) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.primary,
+                            contentColor = if (isMuted) Color.White else Color.Black,
+                            modifier = Modifier.size(72.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isMuted) Icons.Default.MicOff else Icons.Default.Mic,
+                                contentDescription = if (isMuted) "Unmute mic" else "Mute mic",
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
                     }
                 }
             }

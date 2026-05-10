@@ -21,15 +21,16 @@ def main():
     
     # 2. Convert to MediaPipe task format
     print(f"Converting merged model to MediaPipe .task format (8-bit quantization)...")
+    abs_output_task = os.path.abspath(OUTPUT_TASK)
     config = converter.ConversionConfig(
         input_ckpt=MERGED_DIR,
         ckpt_format="safetensors",
         model_type="GEMMA",
         backend="cpu",
-        output_dir=os.path.dirname(os.path.abspath(OUTPUT_TASK)),
+        output_dir=os.path.dirname(abs_output_task),
         combine_file_only=True,
         vocab_model_file=f"{MERGED_DIR}/tokenizer.model",
-        output_tflite_file=OUTPUT_TASK,
+        output_tflite_file=abs_output_task,
     )
     
     try:

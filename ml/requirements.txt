@@ -16,3 +16,5 @@ transformers==5.5.0
 tokenizers>=0.22.0,<=0.23.0
 torchcodec
 timm
+
+mediapipe

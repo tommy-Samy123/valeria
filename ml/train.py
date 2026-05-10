@@ -55,12 +55,14 @@ def main():
     processor = get_chat_template(processor, "gemma-4")
     
     def formatting_func(example):
-        text = processor.apply_chat_template(
+        texts = processor.apply_chat_template(
             example["messages"],
             tokenize=False,
             add_generation_prompt=False,
         )
-        return [text]
+        if isinstance(texts, str):
+            return [texts]
+        return texts
     
     # Setup Trainer
     trainer = SFTTrainer(

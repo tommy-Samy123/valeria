@@ -2,6 +2,8 @@ package com.valeria.app
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -79,10 +81,10 @@ class MainActivity : ComponentActivity() {
     private var micPermissionGranted by mutableStateOf(false)
 
     private val permissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        micPermissionGranted = granted
-        if (!granted) {
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        micPermissionGranted = permissions[Manifest.permission.RECORD_AUDIO] == true
+        if (micPermissionGranted != true) {
             Toast.makeText(this, "Microphone permission is required for voice commands", Toast.LENGTH_LONG).show()
         }
     }
@@ -103,7 +105,15 @@ class MainActivity : ComponentActivity() {
                     ValeriaRoot(
                         hasMicPermission = micPermissionGranted,
                         onRequestPermission = {
-                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                permissionLauncher.launch(
+                                    arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
+                                )
+                            } else {
+                                permissionLauncher.launch(
+                                    arrayOf(Manifest.permission.RECORD_AUDIO)
+                                )
+                            }
                         }
                     )
                 }
@@ -185,7 +195,7 @@ fun ValeriaScreen(
 
     val stt = remember(context) {
         SpeechToTextHelper(
-            context,
+            context.applicationContext,
             callback = { result ->
                 result.onSuccess { text ->
                     if (text.isBlank()) return@onSuccess
@@ -247,13 +257,21 @@ fun ValeriaScreen(
     }
 
     LaunchedEffect(isMuted, isGenerating, isListening) {
+        val serviceIntent = Intent(context, MicForegroundService::class.java)
         if (!isMuted && !isGenerating && !isListening) {
             delay(300) // Brief delay to avoid overwhelming the speech recognizer
             if (!isMuted && !isGenerating) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(serviceIntent)
+                } else {
+                    context.startService(serviceIntent)
+                }
                 stt.startListening()
                 isListening = true
             }
         } else if (isMuted && isListening) {
+            serviceIntent.action = "STOP"
+            context.startService(serviceIntent)
             stt.stopListening()
             isListening = false
         }
@@ -273,6 +291,9 @@ fun ValeriaScreen(
             stt.release()
             tts.release()
             ttsHelperState.value = null
+            
+            val stopIntent = Intent(context, MicForegroundService::class.java).apply { action = "STOP" }
+            context.startService(stopIntent)
         }
     }
 

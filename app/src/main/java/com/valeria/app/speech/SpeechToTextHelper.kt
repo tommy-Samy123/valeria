@@ -52,6 +52,7 @@ class SpeechToTextHelper(
     }
 
     private var speechRecognizer: SpeechRecognizer? = null
+    private var wasInterrupted = false
     
     private val recognizerIntent: Intent by lazy {
         Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -68,6 +69,7 @@ class SpeechToTextHelper(
 
     fun startListening() {
         runOnMain {
+            wasInterrupted = false
             if (!SpeechRecognizer.isRecognitionAvailable(context)) {
                 Log.e(TAG, "Speech recognition not available")
                 callback(Result.failure(IllegalStateException("Speech recognition not available on this device")))
@@ -122,9 +124,13 @@ class SpeechToTextHelper(
                             val text = matches?.firstOrNull()?.trim()
                             Log.d(TAG, "onResults: $text")
                             runOnMain {
-                                if (!text.isNullOrBlank()) {
+                                if (wasInterrupted) {
+                                    Log.d(TAG, "onResults: Dropping result because session was contaminated by TTS interruption.")
+                                    callback(Result.success(""))
+                                } else if (!text.isNullOrBlank()) {
                                     if (isLikelyEcho(text)) {
                                         Log.d(TAG, "onResults: Ignored as TTS echo")
+                                        callback(Result.success(""))
                                     } else {
                                         callback(Result.success(text))
                                     }
@@ -139,7 +145,10 @@ class SpeechToTextHelper(
                             val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                             val partialText = matches?.firstOrNull()?.trim()
                             if (!partialText.isNullOrEmpty() && !isLikelyEcho(partialText)) {
-                                runOnMain { onSpeechDetected?.invoke() }
+                                runOnMain { 
+                                    wasInterrupted = true
+                                    onSpeechDetected?.invoke() 
+                                }
                             }
                             Log.d(TAG, "onPartialResults: $partialText")
                         }

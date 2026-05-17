@@ -146,7 +146,9 @@ class SpeechToTextHelper(
                             val partialText = matches?.firstOrNull()?.trim()
                             if (!partialText.isNullOrEmpty() && !isLikelyEcho(partialText)) {
                                 runOnMain { 
-                                    wasInterrupted = true
+                                    if (getActivelySpeakingText?.invoke() != null) {
+                                        wasInterrupted = true
+                                    }
                                     onSpeechDetected?.invoke() 
                                 }
                             }

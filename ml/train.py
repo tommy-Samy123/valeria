@@ -2,27 +2,27 @@ import os
 import torch
 import torch._dynamo
 from datasets import load_dataset
-from unsloth import FastVisionModel, get_chat_template
+from unsloth import FastLanguageModel, get_chat_template
 from trl import SFTTrainer, SFTConfig
 
 # Configuration
-MODEL_NAME = "unsloth/gemma-4-E2B-it"
+MODEL_NAME = "unsloth/gemma-3-270m-it"
 DATASET_NAME = "i-am-mushfiq/FirstAidQA"
-OUTPUT_DIR = "gemma_4_lora"
+OUTPUT_DIR = "gemma_3_lora"
 
 def main():
     # Setup optimizations
     torch._dynamo.config.recompile_limit = 64
     
-    print("Loading model and processor...")
-    model, processor = FastVisionModel.from_pretrained(
+    print("Loading model and tokenizer...")
+    model, tokenizer = FastLanguageModel.from_pretrained(
         MODEL_NAME,
         load_in_4bit=False,
         use_gradient_checkpointing="unsloth",
     )
     
     # Configure LoRA
-    model = FastVisionModel.get_peft_model(
+    model = FastLanguageModel.get_peft_model(
         model,
         r=8,
         lora_alpha=8,
@@ -40,11 +40,11 @@ def main():
             "messages": [
                 {
                     "role": "user",
-                    "content": [{"type": "text", "text": sample["question"]}],
+                    "content": sample["question"],
                 },
                 {
                     "role": "assistant",
-                    "content": [{"type": "text", "text": sample["answer"]}],
+                    "content": sample["answer"],
                 },
             ]
         }
@@ -52,10 +52,10 @@ def main():
     dataset = dataset.map(convert_to_conversation)
     
     # Setup Chat Template
-    processor = get_chat_template(processor, "gemma-4")
+    tokenizer = get_chat_template(tokenizer, chat_template="gemma")
     
     def formatting_func(example):
-        texts = processor.apply_chat_template(
+        texts = tokenizer.apply_chat_template(
             example["messages"],
             tokenize=False,
             add_generation_prompt=False,
@@ -68,7 +68,7 @@ def main():
     trainer = SFTTrainer(
         model=model,
         train_dataset=dataset,
-        tokenizer=processor.tokenizer,
+        tokenizer=tokenizer,
         formatting_func=formatting_func,
         args=SFTConfig(
             per_device_train_batch_size=1,
@@ -110,7 +110,7 @@ def main():
     # Save model
     print(f"Saving model to {OUTPUT_DIR}...")
     model.save_pretrained(OUTPUT_DIR)
-    processor.save_pretrained(OUTPUT_DIR)
+    tokenizer.save_pretrained(OUTPUT_DIR)
     print("Done!")
 
 if __name__ == "__main__":

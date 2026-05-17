@@ -1,23 +1,23 @@
 import os
 import shutil
-from unsloth import FastVisionModel
+from unsloth import FastLanguageModel
 from mediapipe.tasks.python.genai import converter
 
-MODEL_DIR = "gemma_4_lora"
+MODEL_DIR = "gemma_3_lora"
 MERGED_DIR = "merged_model"
 OUTPUT_TASK = "firstaid_gemma_q8.task"
 
 def main():
     # 1. Load the model and merge LoRA weights
     print(f"Loading LoRA adapter from {MODEL_DIR}...")
-    model, processor = FastVisionModel.from_pretrained(
+    model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=MODEL_DIR,
         load_in_4bit=False, # We want to save full precision weights before quantization
     )
     
     print(f"Merging LoRA into base model and saving to {MERGED_DIR}...")
     # This saves the full Hugging Face model (safetensors format)
-    model.save_pretrained_merged(MERGED_DIR, processor, save_method="merged_16bit")
+    model.save_pretrained_merged(MERGED_DIR, tokenizer, save_method="merged_16bit")
     
     # 2. Convert to MediaPipe task format
     print(f"Converting merged model to MediaPipe .task format (8-bit quantization)...")
@@ -25,7 +25,7 @@ def main():
     config = converter.ConversionConfig(
         input_ckpt=MERGED_DIR,
         ckpt_format="safetensors",
-        model_type="GEMMA",
+        model_type="GEMMA3_300M",
         backend="cpu",
         output_dir=os.path.dirname(abs_output_task),
         combine_file_only=True,

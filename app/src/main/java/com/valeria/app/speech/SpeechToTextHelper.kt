@@ -23,6 +23,7 @@ class SpeechToTextHelper(
 ) {
     private val TAG = "SpeechToTextHelper"
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
 
     private fun runOnMain(block: () -> Unit) {
         if (Looper.myLooper() == Looper.getMainLooper()) {
@@ -64,6 +65,21 @@ class SpeechToTextHelper(
             // Tell the recognizer to be a bit more patient
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+        }
+    }
+
+    private fun muteSystemBeep() {
+        try {
+            audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_MUTE, 0)
+            mainHandler.postDelayed({
+                try {
+                    audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_UNMUTE, 0)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to unmute", e)
+                }
+            }, 300)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to mute beep", e)
         }
     }
 
@@ -161,12 +177,14 @@ class SpeechToTextHelper(
             }
             
             Log.d(TAG, "Starting listening with locale: ${Locale.getDefault().toLanguageTag()}")
+            muteSystemBeep()
             speechRecognizer?.startListening(recognizerIntent)
         }
     }
 
     fun stopListening() {
         runOnMain {
+            muteSystemBeep()
             speechRecognizer?.stopListening()
         }
     }

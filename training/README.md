@@ -66,6 +66,39 @@ disconnects, run the cells again from the top. Training cells pass `--resume` an
 checkpoint (saved every 50 steps; change with `--save-steps`). Resuming with different training settings is refused,
 because it would silently change the data order.
 
+## Save a run to Drive and continue on another machine
+Colab wipes the machine when the session ends, so anything only in `training/outputs/` or `training/data/` is lost.
+The current notebook writes to Drive by itself. Use these cells if a run was started with an older notebook
+(outputs under `training/outputs/`), or to move work to a different machine or Google account.
+
+**1. Save** (in the old session, after the training and evaluation cells have finished):
+```python
+from google.colab import drive
+drive.mount("/content/drive")
+D = "/content/drive/MyDrive/valeria_runs"
+!mkdir -p {D}/text_r16
+!cp -r training/outputs/text_r16/lora {D}/text_r16/
+!cp -r training/outputs/eval_* {D}/
+!cd training && zip -qr {D}/data.zip data
+```
+- `text_r16/lora`: the trained adapter (small). Change `text_r16` to the run you are saving, e.g. `mix_r16`.
+- `eval_*`: the scores. A "No such file" error for one of them just means that evaluation was not run.
+- `data.zip`: the exact text and photo splits, so later runs are trained and scored on the same examples, and the
+  Roboflow key is not needed again.
+- Do not copy `merged/` unless you need it for export: it is about 10 GB.
+
+**2. Continue** (in the new session or on the other machine):
+1. Open `training/notebooks/valeria_finetune_colab.ipynb` fresh from GitHub (Colab: File → Open notebook → GitHub),
+   so you get the latest cells, and pick a T4 GPU runtime.
+2. Run section 1 (clone, install, mount Drive). If the other machine uses a different Google account, first share
+   the `valeria_runs` folder with it, or download the folder and upload it to that account's `MyDrive`.
+3. Run section 2. It finds `data.zip` in Drive and restores it instead of downloading.
+4. Skip the sections whose results are already in `valeria_runs` (smoke test, baseline, run 1) and run the next one.
+
+To use a machine without Drive (Kaggle, a lab GPU), download `valeria_runs` from Drive, unzip `data.zip` into
+`training/`, copy the run folders into `training/outputs/`, and run the commands from the notebook with
+`--out training/outputs/<run>` instead of `{D}/<run>`.
+
 ## Suggested order
 1. **Smoke test** (`--max-steps 10`) to check that everything loads.
 2. **Baseline:** evaluate the base model. This is the "before" number for the science-fair comparison.

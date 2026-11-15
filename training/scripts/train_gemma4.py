@@ -12,6 +12,10 @@ Runs on one GPU with >= 15 GB (free Colab/Kaggle T4 works with --load-in-4bit; L
       --train training/data/text/train.jsonl training/data/images/train.jsonl \
       --val training/data/text/val.jsonl training/data/images/val.jsonl --out training/outputs/mix_r16 --merge
 
+  # Long runs on Colab: write checkpoints to Google Drive and re-run the same command with --resume
+  # after a disconnect. Training continues from the newest checkpoint (at most --save-steps lost).
+  python training/scripts/train_gemma4.py ... --out /content/drive/MyDrive/valeria_runs/mix_r16 --resume
+
 Loss is computed only on the assistant's JSON answer (system + user tokens and image tokens are masked).
 Examples are packed into micro-batches of one modality (all-text or all-image) so text and photo
 examples never need padding together.
@@ -127,6 +131,26 @@ class Collator:
         return out
 
 
+# Changing any of these between a run and its resume changes the data order or the step count,
+# so the resumed run would silently train on different batches.
+RESUME_KEYS = ["train", "model", "r", "alpha", "lr", "epochs", "max_steps", "micro_batch", "grad_accum", "seed",
+               "finetune_vision"]
+
+
+def check_resume_args(args, resume_from: str | None) -> None:
+    """Save the run's settings on a fresh start; on resume, refuse if they differ from the saved ones."""
+    current = {k: str(getattr(args, k)) for k in RESUME_KEYS}
+    path = args.out / "resume_args.json"
+    if resume_from and path.exists():
+        saved = json.loads(path.read_text())
+        diff = {k: (saved.get(k), v) for k, v in current.items() if saved.get(k) != v}
+        if diff:
+            raise SystemExit(f"--resume with different settings than the original run (saved, now): {diff}")
+    elif not resume_from:
+        args.out.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(current, indent=2))
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--train", type=Path, nargs="+", required=True)
@@ -147,7 +171,23 @@ def main() -> None:
     ap.add_argument("--val-limit", type=int, default=300, help="val examples used for eval loss")
     ap.add_argument("--seed", type=int, default=3407)
     ap.add_argument("--merge", action="store_true", help="also save a merged 16-bit model for export")
+    ap.add_argument("--merge-dir", type=Path, help="where to write the merged model (default: OUT/merged, about 10 GB)")
+    ap.add_argument("--save-steps", type=int, default=50, help="checkpoint every N optimizer steps")
+    ap.add_argument("--eval-steps", type=int, default=50)
+    ap.add_argument("--resume", action="store_true",
+                    help="continue from the newest checkpoint in OUT/checkpoints; starts fresh if there is none")
     args = ap.parse_args()
+
+    ckpt_dir = args.out / "checkpoints"
+    # trainer_state.json is written last, so a checkpoint without it was cut off mid-save (e.g. by a disconnect)
+    checkpoints = sorted((p for p in ckpt_dir.glob("checkpoint-*") if (p / "trainer_state.json").exists()),
+                         key=lambda p: int(p.name.split("-")[-1])) if ckpt_dir.exists() else []
+    resume_from = str(checkpoints[-1]) if args.resume and checkpoints else None
+    if args.resume:
+        print(f"resuming from {resume_from}" if resume_from else f"--resume: no checkpoint in {ckpt_dir}, starting fresh")
+    elif checkpoints:
+        print(f"warning: {ckpt_dir} already has checkpoints; pass --resume to continue instead of starting over")
+    check_resume_args(args, resume_from)
 
     from unsloth import FastVisionModel, get_chat_template  # import first so Unsloth can patch transformers
     import torch
@@ -191,7 +231,7 @@ def main() -> None:
         eval_dataset=val_ds,
         data_collator=Collator(processor, args.max_len),
         args=TrainingArguments(
-            output_dir=str(args.out / "checkpoints"),
+            output_dir=str(ckpt_dir),
             per_device_train_batch_size=1,
             per_device_eval_batch_size=1,
             gradient_accumulation_steps=args.grad_accum,
@@ -207,9 +247,9 @@ def main() -> None:
             fp16=not bf16,
             logging_steps=5,
             eval_strategy="steps" if val_ds else "no",
-            eval_steps=50,
+            eval_steps=args.eval_steps,
             save_strategy="steps",
-            save_steps=100,
+            save_steps=args.save_steps,
             save_total_limit=2,
             remove_unused_columns=False,
             prediction_loss_only=True,
@@ -218,7 +258,7 @@ def main() -> None:
             seed=args.seed,
         ),
     )
-    stats = trainer.train()
+    stats = trainer.train(resume_from_checkpoint=resume_from)
     print(stats)
 
     lora_dir = args.out / "lora"
@@ -227,7 +267,7 @@ def main() -> None:
     (args.out / "run_args.json").write_text(json.dumps({k: str(v) for k, v in vars(args).items()}, indent=2))
     print(f"saved LoRA adapter to {lora_dir}")
     if args.merge:
-        merged = args.out / "merged"
+        merged = args.merge_dir or args.out / "merged"
         model.save_pretrained_merged(str(merged), processor, save_method="merged_16bit")
         print(f"saved merged 16-bit model to {merged}")
 

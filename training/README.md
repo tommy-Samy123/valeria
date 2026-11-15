@@ -61,6 +61,11 @@ python3 training/scripts/prepare_images.py --max-per-class 600
 Training (GPU): open `training/notebooks/valeria_finetune_colab.ipynb` in Colab and run the cells, or run the
 commands in the docstrings of `train_gemma4.py` and `evaluate.py`.
 
+The notebook writes data, checkpoints, adapters and scores to Google Drive (`MyDrive/valeria_runs`). If Colab
+disconnects, run the cells again from the top. Training cells pass `--resume` and continue from the newest
+checkpoint (saved every 50 steps; change with `--save-steps`). Resuming with different training settings is refused,
+because it would silently change the data order.
+
 ## Suggested order
 1. **Smoke test** (`--max-steps 10`) to check that everything loads.
 2. **Baseline:** evaluate the base model. This is the "before" number for the science-fair comparison.

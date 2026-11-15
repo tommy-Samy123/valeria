@@ -199,7 +199,7 @@ def main() -> None:
             max_steps=args.max_steps,
             learning_rate=args.lr,
             lr_scheduler_type="cosine",
-            warmup_ratio=0.03,
+            warmup_steps=0.03,
             weight_decay=0.001,
             max_grad_norm=0.3,
             optim="adamw_8bit",

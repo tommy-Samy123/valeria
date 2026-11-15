@@ -1,0 +1,4 @@
+# Local data preparation (Mac/Linux, no GPU needed)
+roboflow>=1.1
+pillow>=10.0
+imagehash>=4.3

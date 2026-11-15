@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "categories": {
+    "abrasion": "Scrape or graze: top layer of skin rubbed off (road rash, carpet burn from friction).",
+    "laceration": "Cut or tear through the skin (knife, glass, sharp edge).",
+    "burn": "Thermal burn from heat, hot liquid, steam, or a hot surface. Chemical/electrical burns are red flags.",
+    "sprain": "Twisted or rolled joint with pain or swelling, no sign of a break.",
+    "bruise": "Bump or bruise with intact skin.",
+    "nosebleed": "Bleeding from the nose.",
+    "fracture": "Possible broken bone: snap/crack sound, deformity, cannot bear weight.",
+    "none": "No supported injury identified (no injury visible, out of scope, or an emergency with no specific injury).",
+    "unclear": "An injury is mentioned but the type cannot be determined; ask a clarifying question."
+  },
+  "core_categories": ["abrasion", "laceration", "burn", "sprain"],
+  "red_flags": {
+    "breathing": "Trouble breathing, not breathing, choking.",
+    "unconscious": "Passed out, unresponsive, fainted.",
+    "severe_bleeding": "Bleeding that won't stop with pressure, spurting, soaking through.",
+    "deep_wound": "Gaping wound, can see fat/muscle/bone, stab or puncture wound.",
+    "embedded_object": "Object stuck in the wound.",
+    "bone_exposed": "Bone visible or poking through the skin.",
+    "deformity": "Limb bent at a wrong angle.",
+    "numb_or_cold_limb": "Limb numb, cold, pale, or blue below the injury.",
+    "large_burn": "Burn larger than the person's palm, or blistered over a large area.",
+    "sensitive_area_burn": "Burn on the face, eyes, mouth, hands, feet, genitals, or across a joint.",
+    "chemical_or_electrical_burn": "Burn from chemicals or electricity.",
+    "head_injury": "Hit to the head with confusion, vomiting, drowsiness, or memory loss.",
+    "chest_pain": "Chest pain or pressure.",
+    "seizure": "Seizure or convulsions.",
+    "eye_injury": "Injury to the eye."
+  },
+  "output_schema": {
+    "category": "one of categories",
+    "also": "list of other categories mentioned (most urgent first), may be empty",
+    "emergency": "true if any red flag is present",
+    "red_flags": "list of red_flags keys, may be empty",
+    "body_part": "short lowercase body part or null",
+    "clarify": "one short question to ask the user, or null"
+  }
+}

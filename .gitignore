@@ -27,3 +27,12 @@ captures/
 
 # Other
 *.task
+
+# Training data and model outputs (regenerate with training/scripts)
+training/data/
+training/outputs/
+
+# Python
+__pycache__/
+*.pyc
+.venv*/

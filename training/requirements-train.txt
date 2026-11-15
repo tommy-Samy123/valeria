@@ -1,0 +1,4 @@
+# GPU training/evaluation (Colab, Kaggle, or a CUDA machine).
+# Unsloth pulls in compatible torch/transformers/peft/trl/bitsandbytes versions; Gemma 4 needs a 2026 release.
+unsloth
+pillow>=10.0

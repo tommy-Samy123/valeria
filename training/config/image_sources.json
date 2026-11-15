@@ -1,0 +1,77 @@
+{
+  "_note": "Licenses and image counts checked on Roboflow Universe on 2026-11-14. CC BY 4.0 requires attribution: prepare_images.py writes data/images/ATTRIBUTION.md. Class names are matched case-insensitively with '-', '_' treated as spaces.",
+  "sources": [
+    {
+      "name": "basic_wound_classify",
+      "enabled": true,
+      "url": "https://universe.roboflow.com/clinicvision/basic-wound-classify-mpoys",
+      "author": "clinicvision",
+      "license": "CC BY 4.0",
+      "workspace": "clinicvision",
+      "project": "basic-wound-classify-mpoys",
+      "version": null,
+      "format": "folder",
+      "approx_images": 1515,
+      "class_map": {
+        "abrasion": "abrasion",
+        "bruise": "bruise",
+        "burn": "burn",
+        "laceration": "laceration",
+        "normal skin": "none"
+      }
+    },
+    {
+      "name": "ankle_sprain",
+      "enabled": true,
+      "url": "https://universe.roboflow.com/yolo-ujzf8/ankle-sprain-wikyk",
+      "author": "YOLO (yolo-ujzf8)",
+      "license": "CC BY 4.0",
+      "workspace": "yolo-ujzf8",
+      "project": "ankle-sprain-wikyk",
+      "version": null,
+      "format": "coco",
+      "approx_images": 682,
+      "class_map": {
+        "*": "sprain"
+      }
+    },
+    {
+      "name": "classify_wounds",
+      "enabled": true,
+      "url": "https://universe.roboflow.com/clinicvision/classify-wounds-pgnkj",
+      "author": "clinicvision",
+      "license": "CC BY 4.0",
+      "workspace": "clinicvision",
+      "project": "classify-wounds-pgnkj",
+      "version": null,
+      "format": "coco",
+      "approx_images": 131,
+      "class_map": {
+        "abrasion": "abrasion",
+        "bruise": "bruise",
+        "burn": "burn",
+        "laceration": "laceration"
+      }
+    },
+    {
+      "name": "master_wound_classifier",
+      "enabled": false,
+      "_why_disabled": "The project has 2,458 images but no published dataset version, so the API cannot export it. To use it: open the URL, click 'Fork Dataset' into your own Roboflow workspace, generate a version (no augmentations), then set workspace/project/version below to your fork and enabled=true.",
+      "url": "https://universe.roboflow.com/tan-keqin-a23cs0184/master-wound-classifier",
+      "author": "tan-keqin-a23cs0184",
+      "license": "CC BY 4.0",
+      "workspace": "YOUR_WORKSPACE",
+      "project": "master-wound-classifier",
+      "version": 1,
+      "format": "folder",
+      "approx_images": 2458,
+      "class_map": {
+        "normal": "none",
+        "abrasion": "abrasion",
+        "bruise": "bruise",
+        "burn": "burn",
+        "laceration": "laceration"
+      }
+    }
+  ]
+}
